@@ -1,0 +1,36 @@
+customer_id,customer_name,month,product,leak_type,estimated_recovery,detail
+1,Acme Retail,2026-01,API Calls (per 1k),missing_charge,541.64,1267 units used but no invoice line was created.
+1,Acme Retail,2026-03,Premium Support,rate_leak,668.82,Billed at $1669.5307 vs contracted $2338.3497 per unit.
+1,Acme Retail,2026-04,Premium Support,stale_discount,233.84,10% discount applied after expiry (2026-03-31).
+1,Acme Retail,2026-05,Premium Support,rate_leak,775.47,Billed at $1562.8816 vs contracted $2338.3497 per unit.
+2,Globex Logistics,2026-02,API Calls (per 1k),missing_charge,1298.36,3084 units used but no invoice line was created.
+4,Umbrella Health,2026-01,API Calls (per 1k),rate_leak,137.48,Billed at $0.2825 vs contracted $0.4225 per unit.
+4,Umbrella Health,2026-01,Data Storage (GB),rate_leak,71.27,Billed at $0.0627 vs contracted $0.0918 per unit.
+4,Umbrella Health,2026-02,Premium Support,rate_leak,427.89,Billed at $1687.1703 vs contracted $2115.0574 per unit.
+4,Umbrella Health,2026-03,Premium Support,rate_leak,383.96,Billed at $1731.0985 vs contracted $2115.0574 per unit.
+4,Umbrella Health,2026-05,Premium Support,rate_leak,211.96,Billed at $1903.0964 vs contracted $2115.0574 per unit.
+5,Wonka Foods,2026-03,Active Seats,rate_leak,14107.27,Billed at $7.4098 vs contracted $12.0065 per unit.
+5,Wonka Foods,2026-05,API Calls (per 1k),stale_discount,97.04,5% discount applied after expiry (2026-03-31).
+5,Wonka Foods,2026-05,Active Seats,rate_leak,9211.83,Billed at $7.4507 vs contracted $12.0065 per unit.
+5,Wonka Foods,2026-06,API Calls (per 1k),rate_leak,281.66,Billed at $0.3004 vs contracted $0.4165 per unit.
+6,Stark Manufacturing,2026-02,Active Seats,missing_charge,18429.2,1319 units used but no invoice line was created.
+6,Stark Manufacturing,2026-02,Data Storage (GB),rate_leak,50.98,Billed at $0.0686 vs contracted $0.0913 per unit.
+6,Stark Manufacturing,2026-04,Active Seats,missing_charge,41245.64,2952 units used but no invoice line was created.
+6,Stark Manufacturing,2026-06,Premium Support,rate_leak,589.03,Billed at $1569.1574 vs contracted $2158.1849 per unit.
+7,Wayne Freight,2026-02,API Calls (per 1k),rate_leak,216.89,Billed at $0.4149 vs contracted $0.4771 per unit.
+7,Wayne Freight,2026-06,API Calls (per 1k),missing_charge,2077.77,4355 units used but no invoice line was created.
+8,Cyberdyne Robotics,2026-01,Premium Support,missing_charge,2175.57,1 units used but no invoice line was created.
+8,Cyberdyne Robotics,2026-03,Data Storage (GB),missing_charge,468.91,4910 units used but no invoice line was created.
+9,Soylent Grocers,2026-02,Active Seats,rate_leak,6177.56,Billed at $10.3122 vs contracted $12.8607 per unit.
+9,Soylent Grocers,2026-05,API Calls (per 1k),stale_discount,21.8,10% discount applied after expiry (2026-03-31).
+9,Soylent Grocers,2026-06,API Calls (per 1k),stale_discount,189.72,10% discount applied after expiry (2026-03-31).
+10,Hooli Media,2026-04,Data Storage (GB),stale_discount,22.0,10% discount applied after expiry (2026-03-31).
+10,Hooli Media,2026-06,Active Seats,rate_leak,16698.41,Billed at $10.7266 vs contracted $14.9637 per unit.
+11,Pied Piper Data,2026-05,API Calls (per 1k),missing_charge,1632.43,3727 units used but no invoice line was created.
+11,Pied Piper Data,2026-06,API Calls (per 1k),rate_leak,631.33,Billed at $0.2806 vs contracted $0.4380 per unit.
+12,Vandelay Imports,2026-01,Active Seats,missing_charge,63995.47,4918 units used but no invoice line was created.
+12,Vandelay Imports,2026-01,Data Storage (GB),rate_leak,109.4,Billed at $0.0651 vs contracted $0.0976 per unit.
+12,Vandelay Imports,2026-01,Premium Support,rate_leak,241.32,Billed at $1897.8040 vs contracted $2139.1283 per unit.
+12,Vandelay Imports,2026-01,(account minimum),minimum_commitment_leak,1147.04,"Month total $3,852.96 below minimum $5,000; no true-up charged."
+12,Vandelay Imports,2026-02,API Calls (per 1k),missing_charge,1124.89,2525 units used but no invoice line was created.
+12,Vandelay Imports,2026-05,Data Storage (GB),rate_leak,89.85,Billed at $0.0615 vs contracted $0.0976 per unit.

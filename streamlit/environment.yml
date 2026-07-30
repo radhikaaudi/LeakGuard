@@ -1,0 +1,11 @@
+# Streamlit in Snowflake resolves packages from the Snowflake Anaconda channel.
+# Only declare what the app imports beyond the always-available streamlit and
+# snowflake-snowpark-python. Pinning is deliberately loose -- SiS curates the
+# channel, and an over-tight pin is the usual cause of a deploy that resolves
+# locally but not in Snowflake.
+name: sf_env
+channels:
+  - snowflake
+dependencies:
+  - pandas
+  - altair

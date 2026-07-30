@@ -1,0 +1,20 @@
+definition_version: 2
+
+entities:
+  leakguard_app:
+    type: streamlit
+    # Fully qualified on purpose. The `default` connection has no current
+    # database (see `snow connection test`), so an unqualified name fails with
+    #   090105 (22000): Cannot perform CREATE STREAMLIT. This session does not
+    #   have a current database.
+    identifier:
+      name: LEAKGUARD_CONSOLE
+      database: LEAKGUARD
+      schema: CORE
+    stage: LEAKGUARD_STREAMLIT_STAGE
+    query_warehouse: LEAKGUARD_WH
+    main_file: streamlit/leakguard_app.py
+    title: "LeakGuard — Revenue Leakage Console"
+    artifacts:
+      - streamlit/leakguard_app.py
+      - streamlit/environment.yml

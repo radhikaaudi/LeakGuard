@@ -1,0 +1,32 @@
+# snow CLI build output -- regenerated on every `snow streamlit deploy`
+output/
+
+# Generated data. Reproducible from data/generate_data.py, and the CSVs are
+# large and churn on every run, which makes for noisy diffs.
+#
+# NOTE: planted_leaks.csv is the evaluation answer key and IS committed on
+# purpose -- the precision/recall numbers in the README are meaningless without
+# the exact key they were scored against. Regenerating the data invalidates it,
+# so regenerate all three together or none.
+data/billing/billing_records.csv
+data/contracts/contracts.csv
+data/contracts/contract_*.md
+!data/ground_truth/planted_leaks.csv
+
+# Local Snowflake credentials -- must never be committed.
+config.toml
+.snowflake/
+*.p8
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
