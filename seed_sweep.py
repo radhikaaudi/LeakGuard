@@ -135,6 +135,29 @@ def main():
     print("-" * 62)
     print(f"{perfect}/{len(results)} unseen datasets at precision = recall = 1.0000")
 
+    # Persist to EVALUATION_SWEEP so the Streamlit console can show the
+    # generalisation evidence. Replaces the previous sweep wholesale -- a stale
+    # row from an older detector version would be worse than no row.
+    rows = [
+        f"({seed}, {r[0] + r[2]}, {r[0]}, {r[1]}, {r[2]})"
+        for seed, r in results.items() if r
+    ]
+    if rows:
+        sweep_path = os.path.join(HERE, "_sweep_tmp.sql")
+        with open(sweep_path, "w", encoding="utf-8") as f:
+            f.write(
+                "USE ROLE ACCOUNTADMIN; USE WAREHOUSE LEAKGUARD_WH;\n"
+                "USE DATABASE LEAKGUARD; USE SCHEMA CORE;\n"
+                "CREATE TABLE IF NOT EXISTS EVALUATION_SWEEP ("
+                "seed INTEGER, leaks_planted INTEGER, tp INTEGER, fp INTEGER, "
+                "fn INTEGER, run_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP());\n"
+                "DELETE FROM EVALUATION_SWEEP;\n"
+                "INSERT INTO EVALUATION_SWEEP (seed, leaks_planted, tp, fp, fn) VALUES\n"
+                + ",\n".join(rows) + ";\n"
+            )
+        if run(f"snow sql -f _sweep_tmp.sql -c {CONN}", "persist sweep") is not None:
+            print(f"Recorded {len(rows)} seed result(s) to EVALUATION_SWEEP.")
+
     print(f"\n=== restoring demo dataset (seed {DEMO_SEED}) ===")
     score_seed(DEMO_SEED)
     print("Demo dataset restored. Re-run 03b and 06 to refresh the Cortex arm and memos.")

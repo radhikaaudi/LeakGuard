@@ -11,6 +11,8 @@ in 06 -- all reproducible SQL. A dashboard that recomputed any of that would be
 a second source of truth, and the two would drift. Everything here is a SELECT.
 """
 
+import decimal
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -23,13 +25,30 @@ session = get_active_session()
 
 @st.cache_data(ttl=300)
 def q(sql: str) -> pd.DataFrame:
-    """Run a query and hand back a pandas frame.
+    """Run a query and hand back a pandas frame with numerics as real floats.
 
-    Cached for 5 minutes: the underlying tables only change when someone re-runs
-    the pipeline, so re-querying on every widget interaction would burn warehouse
-    credits for no new information. Use the sidebar button to clear it.
+    WHY THE COERCION: Snowpark's to_pandas() maps Snowflake NUMBER / INTEGER /
+    DECIMAL -- which is what COUNT(), ROUND() and any INTEGER column return -- to
+    Python decimal.Decimal objects inside an object-dtype column, not to a numeric
+    dtype. Decimal is not JSON-serialisable, so Altair fails on it, and several
+    Streamlit widgets raise the extremely unhelpful
+
+        TypeError: bad argument type for built-in operation
+
+    with no line number. Casting Decimal columns to float here fixes every one of
+    those call sites at once, instead of scattering float() casts through the page.
+
+    Cached for 5 minutes: the underlying tables only change when the pipeline is
+    re-run, so re-querying on each widget interaction would burn warehouse credits
+    for no new information. Clear it with the sidebar button.
     """
-    return session.sql(sql).to_pandas()
+    df = session.sql(sql).to_pandas()
+    for col in df.columns:
+        if df[col].dtype == object:
+            non_null = df[col].dropna()
+            if len(non_null) and isinstance(non_null.iloc[0], decimal.Decimal):
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +316,83 @@ with tab_score:
         hide_index=True,
     )
 
+    # ---------------------------------------------------------------------
+    # Generalisation evidence. A perfect score on one fixed seed is weak: the
+    # detector was written by someone who knew how the generator plants leaks.
+    # This is the answer to "you built the test to pass" -- and it is the
+    # strongest claim on the page, so it sits above the per-type breakdown.
+    # ---------------------------------------------------------------------
+    st.divider()
+    st.subheader("Does it hold on data it has never seen?")
+
+    try:
+        sweep = q(
+            """
+            SELECT seed          AS "Seed",
+                   leaks_planted AS "Leaks planted",
+                   fp            AS "False alarms",
+                   fn            AS "Missed",
+                   ROUND(tp / NULLIF(tp + fp, 0), 4) AS "Precision",
+                   ROUND(tp / NULLIF(tp + fn, 0), 4) AS "Recall"
+            FROM EVALUATION_SWEEP ORDER BY seed
+            """
+        )
+    except Exception:
+        sweep = pd.DataFrame()
+
+    if sweep.empty:
+        st.info(
+            "No sweep results recorded. Run `python seed_sweep.py` to validate "
+            "against unseen datasets.",
+            icon="ℹ️",
+        )
+    else:
+        clean = int((sweep["False alarms"] + sweep["Missed"]).eq(0).sum())
+        st.caption(
+            "`seed_sweep.py` regenerates the entire corpus under a different seed "
+            "and re-runs the whole pipeline — generate → load → extract → detect → "
+            "score — against each. The detector was never tuned on these datasets."
+        )
+        st.dataframe(sweep, use_container_width=True, hide_index=True)
+        lo, hi = int(sweep["Leaks planted"].min()), int(sweep["Leaks planted"].max())
+        if clean == len(sweep):
+            st.success(
+                f"**{clean}/{len(sweep)} unseen datasets at precision = recall = "
+                f"1.0000.** Leaks planted ranges {lo}–{hi}, so these are genuinely "
+                "different corpora rather than reruns of one test.",
+                icon="✅",
+            )
+        else:
+            st.warning(
+                f"{len(sweep) - clean} of {len(sweep)} unseen datasets show errors — "
+                "check whether the detector or the answer key is at fault before "
+                "changing detection logic.",
+                icon="⚠️",
+            )
+
+        with st.expander("This sweep already caught a real bug — in the benchmark"):
+            st.markdown(
+                """
+On its first run, seed 7 scored **precision 0.9592 with 2 false positives**, both
+`minimum_commitment_leak`. The detector was right and the answer key was wrong.
+
+`generate_data.py` planted a below-minimum month as a leak only half the time
+(`random.random() < 0.5`) while **never** adding a true-up line for the other
+half — yet the contract text it generates states any shortfall *"shall be
+invoiced as a 'true-up' charge."* Those unplanted months were real breaches the
+key had omitted, and the detector was being penalised for finding them.
+
+Seed 42 hid it completely: it produces **exactly one** below-minimum month, and
+the coin flip landed on "plant it." A single fixed seed did not just make the
+1.0 weak evidence — it made it *wrong* evidence.
+
+**Known gap, recorded rather than hidden:** with every shortfall now a leak,
+there is no compliant-true-up month, so the minimum-commitment branch has no
+negative case — it has never been tested for staying silent when it should.
+                """
+            )
+
+    st.divider()
     misses = q(
         f"""
         SELECT g.customer_name AS "Customer", e.month AS "Month",
@@ -368,7 +464,17 @@ with tab_memo:
                 )
         with right:
             st.markdown("**Draft memo**")
-            st.markdown(row["DRAFT_MEMO"])
+            # str() guard: st.markdown(None) raises, and a NULL draft_memo can slip
+            # through if 04 rebuilt findings without 06 being re-run afterwards.
+            memo_text = row["DRAFT_MEMO"]
+            if memo_text is None or pd.isna(memo_text):
+                st.warning(
+                    "No memo stored for this finding. Run "
+                    "`snow sql -f snowflake/06_draft_memos.sql -c default`.",
+                    icon="⚠️",
+                )
+            else:
+                st.markdown(str(memo_text))
 
         st.download_button(
             "⬇ Download all memos (CSV)",
