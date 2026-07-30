@@ -27,10 +27,25 @@ import os
 import random
 
 # --------------------------------------------------------------------------------------
-# CONFIG — deterministic seed keeps the dataset (and demo) reproducible run-to-run.
+# CONFIG
+#
+# SEED keeps the dataset (and the demo) reproducible run-to-run. It is overridable
+# so the detector can be validated against datasets it has NEVER seen:
+#
+#     python data/generate_data.py            # seed 42 -- the committed demo dataset
+#     python data/generate_data.py 7          # seed 7  -- an unseen dataset
+#     LEAKGUARD_SEED=7 python data/generate_data.py
+#
+# WHY THIS MATTERS: scoring 1.0 on a single fixed seed is a weak claim, because the
+# detector was written by someone who knew how this generator plants leaks. Holding
+# 1.0 across seeds the detector has never been tuned against is a real claim. See
+# snowflake/08_seed_sweep.md for the harness and the measured results.
 # --------------------------------------------------------------------------------------
-SEED = 42
+import sys
+
+SEED = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("LEAKGUARD_SEED", 42))
 random.seed(SEED)
+print(f"[generate_data] seed = {SEED}")
 
 NUM_CUSTOMERS = 12
 MONTHS = ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]
@@ -233,13 +248,36 @@ def generate_billing(contract, billing_rows, leak_rows):
                 "amount_billed": net_amount,
             })
 
-        # LEAK D — "minimum-commitment leak": month total under minimum, no true-up (~ per-customer).
+        # LEAK D — "minimum-commitment leak": month total under minimum, no true-up.
+        #
+        # NO COIN FLIP HERE, AND THAT IS THE POINT. This previously read
+        #     if month_total < minimum and random.random() < 0.5:
+        # which recorded only HALF of the below-minimum months as leaks -- while never
+        # adding a true-up line for the other half. But the contract this generator
+        # writes (see build_contract_text) states:
+        #
+        #   "If actual usage in a given month falls below this minimum, CloudNova
+        #    shall invoice the difference as a 'true-up' charge..."
+        #
+        # So a below-minimum month with no true-up line IS a breach, every time. The
+        # coin flip made the answer key disagree with its own contract text, and the
+        # detector -- which correctly flags all of them -- was scored as raising false
+        # positives for finding real leaks the key had forgotten.
+        #
+        # Found by seed_sweep.py: seed 42 has exactly one below-minimum month and the
+        # flip happened to land on "plant it", so the bug was invisible at 1.0. Seed 7
+        # has three, and two went unplanted -> 2 spurious FPs, precision 0.9592.
+        #
+        # NOTE ON WHAT THIS DATASET STILL DOES NOT TEST: because every shortfall is now
+        # a leak, there is no compliant-true-up month, so the minimum-commitment branch
+        # has no negative case. Emitting an actual true-up line for some months (and
+        # asserting the detector stays silent) is the next improvement to this generator.
         if c["monthly_minimum"] > 0:
             month_total = sum(
                 r["amount_billed"] for r in billing_rows
                 if r["customer_id"] == cust_id and r["month"] == month
             )
-            if month_total < c["monthly_minimum"] and random.random() < 0.5:
+            if month_total < c["monthly_minimum"]:
                 shortfall = round(c["monthly_minimum"] - month_total, 2)
                 leak_rows.append({
                     "customer_id": cust_id, "customer_name": c["customer_name"],

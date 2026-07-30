@@ -1,0 +1,6 @@
+
+USE ROLE ACCOUNTADMIN; USE WAREHOUSE LEAKGUARD_WH;
+USE DATABASE LEAKGUARD; USE SCHEMA CORE;
+SELECT COUNT_IF(outcome='TP') AS tp, COUNT_IF(outcome='FP') AS fp,
+       COUNT_IF(outcome='FN') AS fn, COUNT(*) AS total
+FROM V_EVALUATION WHERE detected_by = 'sql_baseline';

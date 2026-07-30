@@ -1,34 +1,25 @@
 -- ============================================================================
 -- LeakGuard — Milestone 2, Step 0: ENABLE CORTEX (run BEFORE 01_setup.sql)
 -- ============================================================================
--- STATUS as of 2026-07-29: RESOLVED on account BATAFLC-FIB35362.
+-- STATUS: Cortex is LIVE on account BATAFLC-FIB35362 (verified 2026-07-30).
 --   Statements 1-4 succeed and the step-5 smoke test returns a sentence.
 --
--- MIND THE ACCOUNT ID -- THERE HAVE BEEN TWO.
---   TLPJXQR-AJB13531  (old, AWS_US_WEST_2) -- Cortex genuinely blocked, 399258.
---   BATAFLC-FIB35362  (current)            -- Cortex WORKS.
---   Notes elsewhere in this repo were written against the old account. Confirm
---   which one you are on before trusting any Cortex claim:  snow connection test
---
--- TWO DIFFERENT FAILURES THAT LOOK ALIKE. Read the error, not the vibe:
+-- TWO FAILURES THAT LOOK ALIKE. Read the error text, not the vibe:
 --
 --     399258 (0A000): AI function COMPLETE is not available for trial accounts.
---       -> a genuine entitlement block. The function never ran. This is what
---          the OLD account returned, and it is why this file used to say
---          "convert the trial to paid". That diagnosis was correct FOR THAT
---          ACCOUNT -- it just does not apply here.
+--       -> a genuine entitlement block. The function never ran.
 --
 --     400 "Model \"claude-3-5-sonnet\" is unavailable"
 --       -> NOT a block. COMPLETE ran, reached the inference service, and the
 --          service rejected the MODEL NAME. Entitlement is fine; the argument
---          is wrong. This is what the CURRENT account was returning, and the
---          fix was one string, not a payment method.
+--          is wrong. The fix is one string, not a payment method.
 --
---   So: do not convert an account on the strength of a 400 like the second one.
+--   Do not convert an account to paid on the strength of a 400 like the second.
 --
 -- CONNECTION NOTE: the `default` connection has no default database and points
 --   at COMPUTE_WH, not LEAKGUARD_WH. That is fine -- every script here issues
---   its own USE DATABASE / USE WAREHOUSE, so they do not depend on it.
+--   its own USE DATABASE / USE WAREHOUSE, so they do not depend on it. Confirm
+--   with `snow connection test`; expect account BATAFLC-FIB35362.
 --
 -- MODELS AVAILABLE TO THE CURRENT ACCOUNT (probed empirically 2026-07-29):
 --     claude-sonnet-4-5   <-- newest Claude here; what LeakGuard uses

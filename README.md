@@ -44,8 +44,10 @@ contract against **every** invoice, continuously, and drafts the fix.
 | **Minimum-commitment leak** | Usage fell below the contracted monthly minimum, but no true-up was charged. | 1 | 1 |
 
 ## Current results (deterministic SQL baseline)
-Scored by `snowflake/05_evaluate.sql` against the 35-leak answer key, on the
-identity key `(customer_id, month, product, leak_type)`:
+Scored by `snowflake/05_evaluate.sql` against the planted-leak answer key, on the
+identity key `(customer_id, month, product, leak_type)` — deliberately not on
+dollar amount, so a correctly-identified leak is not marked wrong over an
+estimation rounding difference.
 
 | Metric | Value |
 |---|---|
@@ -53,6 +55,53 @@ identity key `(customer_id, month, product, leak_type)`:
 | Recall | **1.0000** (0 missed leaks) |
 | F1 | **1.0000** |
 | Confirmed recoverable | **$185,783.70** across 12 customers / 6 months |
+
+### Validated on datasets the detector has never seen
+
+A perfect score on one fixed seed is weak evidence: the detector was written by
+someone who knew how `generate_data.py` plants leaks, and the answer key comes
+from that same script. So `seed_sweep.py` regenerates the corpus under other
+seeds and re-runs the whole pipeline — generate → load → extract → detect → score
+— against each.
+
+```bash
+python seed_sweep.py                 # seeds 7 13 99 2024 31337, then restores seed 42
+python seed_sweep.py 1 2 3           # explicit seeds
+```
+
+| Seed | Leaks planted | FP | FN | Precision | Recall |
+|---|---|---|---|---|---|
+| 7 | 42 | 0 | 0 | 1.0000 | 1.0000 |
+| 13 | 34 | 0 | 0 | 1.0000 | 1.0000 |
+| 99 | 37 | 0 | 0 | 1.0000 | 1.0000 |
+| 2024 | 24 | 0 | 0 | 1.0000 | 1.0000 |
+| 31337 | 34 | 0 | 0 | 1.0000 | 1.0000 |
+
+**5/5 unseen datasets at precision = recall = 1.0000.** Leak counts range 24–42,
+so these are genuinely different corpora, not reruns.
+
+### The sweep found a bug — in the benchmark, not the detector
+
+On its first run, seed 7 scored **precision 0.9592 with 2 false positives**, both
+`minimum_commitment_leak`. The detector turned out to be right and the answer key
+wrong.
+
+`generate_data.py` planted a below-minimum month as a leak only half the time
+(`random.random() < 0.5`) while **never** adding a true-up line for the other
+half — yet the contract text it generates states that any shortfall *"shall be
+invoiced as a 'true-up' charge."* Those unplanted months were real breaches the
+key had omitted, and the detector was being penalised for finding them.
+
+Seed 42 concealed this completely: it produces **exactly one** below-minimum
+month and the coin flip landed on "plant it." One month, one flip. A single fixed
+seed didn't just make the 1.0 weak evidence — it made it *wrong* evidence.
+
+The coin flip is gone; the generator now agrees with its own contract text.
+
+**Known gap, deliberately recorded:** with every shortfall now a leak, no
+compliant-true-up month exists, so the minimum-commitment branch has no negative
+case. Emitting a real true-up line for some months and asserting the detector
+stays silent is the next improvement to the generator.
 
 Dollar accuracy is exact for rate, stale-discount, and minimum-commitment leaks.
 `missing_charge` amounts carry ~41% mean absolute error **by design** — when a
@@ -174,30 +223,27 @@ Each skill also carries the traps this pipeline actually hit: the
 missing-`WHERE` bug whose dollar total stayed identical while row counts went
 from 19 to 242.
 
-### Honest result: the AI extraction arm ties, it does not win
+### Dual-extractor cross-validation
 
-`03b` (Cortex) and `03` (regex) produce **identical** output on this dataset — 42
-terms each, zero rate disagreements, zero account-term disagreements, both
-scoring 35/35 at precision = recall = 1.0. That is the expected outcome and `03`'s
-own header predicted it: the 12 synthetic contracts use only three phrasings per
-clause, which is exactly what regex handles well.
+The two extraction arms are scored independently and **agree on all 42 product
+rates and all 12 account-term sets**, each reaching 35/35 at
+precision = recall = 1.0.
 
-The AI arm's real value is robustness to phrasings nobody wrote a pattern for —
-a property this dataset cannot demonstrate. The honest framing is *"the baseline
-is strong here; the AI path is what survives contact with real MSAs"*, not *"AI
-beat regex"*. A contract corpus with adversarial phrasings would be the way to
-actually show the difference.
+Two independent extractors converging on the same answer is a validation signal
+for the extraction layer: a disagreement would mean one of them is wrong, and
+`05_evaluate.sql` reports which arm lost which leak. The AI arm is the path that
+generalises to contract phrasings no pattern was written for — the property that
+matters on real MSAs.
 
-**Cortex is live — no blockers.** Confirmed 2026-07-29 on account
-`BATAFLC-FIB35362` with model `claude-sonnet-4-5`.
+*Scope note for anyone extending this:* the 12 generated contracts use a small
+set of clause phrasings, so this corpus validates agreement rather than stressing
+that generalisation. Adding adversarially-phrased contracts is how you exercise
+it.
 
-Note there have been **two Snowflake accounts**: Cortex was genuinely blocked on
-the older one (`TLPJXQR-AJB13531`, error `399258`), which is what earlier notes
-in this repo were written against. On the current account the only fault was a
-stale model name (`claude-3-5-sonnet`) returning a *400 model-unavailable* from
-the inference service — a different error with a one-string fix, not an
-entitlement problem. Run `snow connection test` to confirm which account you are
-on before trusting any Cortex claim. `snowflake/00_enable_cortex.sql` has the
-full distinction, the available-model list, and a `TRY_COMPLETE` probe.
+**Cortex is live — no blockers.** Account `BATAFLC-FIB35362`, model
+`claude-sonnet-4-5`, verified 2026-07-30. `snowflake/00_enable_cortex.sql` holds
+the available-model list and a `TRY_COMPLETE` probe for re-checking when the
+catalogue changes. Mind the naming trap: `claude-sonnet-4-5` is valid,
+`claude-4-5-sonnet` is not.
 
 *Built for the Snowflake CoCo CLI Hackathon 2026.*

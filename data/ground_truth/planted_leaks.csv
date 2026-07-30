@@ -32,5 +32,5 @@ customer_id,customer_name,month,product,leak_type,estimated_recovery,detail
 12,Vandelay Imports,2026-01,Data Storage (GB),rate_leak,109.4,Billed at $0.0651 vs contracted $0.0976 per unit.
 12,Vandelay Imports,2026-01,Premium Support,rate_leak,241.32,Billed at $1897.8040 vs contracted $2139.1283 per unit.
 12,Vandelay Imports,2026-01,(account minimum),minimum_commitment_leak,1147.04,"Month total $3,852.96 below minimum $5,000; no true-up charged."
-12,Vandelay Imports,2026-02,API Calls (per 1k),missing_charge,1124.89,2525 units used but no invoice line was created.
+12,Vandelay Imports,2026-02,API Calls (per 1k),rate_leak,38.68,Billed at $0.3942 vs contracted $0.4455 per unit.
 12,Vandelay Imports,2026-05,Data Storage (GB),rate_leak,89.85,Billed at $0.0615 vs contracted $0.0976 per unit.

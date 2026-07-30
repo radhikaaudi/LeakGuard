@@ -94,6 +94,28 @@ the answer key's count for that type.** A branch that flags 30 months when one
 leak was planted has just destroyed precision. Verify against the data first, not
 after.
 
+## Before trusting any score, check it generalises
+
+A score against the committed seed-42 dataset is weak evidence on its own — the
+detector was written by someone who knew how the generator plants leaks. Validate
+against unseen datasets:
+
+```bash
+python seed_sweep.py            # 5 unseen seeds, then restores seed 42
+```
+
+Current: **5/5 unseen datasets at precision = recall = 1.0000** (leak counts
+24–42). This sweep has already caught one real defect — see below — so run it
+after any change to `V_CANDIDATE_LEAKS` or to `generate_data.py`.
+
+**When a sweep reports false positives, do not assume the detector is wrong.**
+The first sweep flagged 2 FPs on seed 7 and the detector was correct: the
+generator was planting only half of the below-minimum months as leaks while never
+adding a true-up line for the rest, contradicting its own contract text. The
+answer key was incomplete. Always check the finding against what the *contract*
+says before "fixing" detection logic — otherwise you will break a correct rule to
+satisfy a broken benchmark.
+
 ## A trap this pipeline has actually hit
 
 A missing `WHERE` clause once made the rate-leak branch emit a row for every
