@@ -11,9 +11,10 @@ agent rather than a report: it takes an action a person would otherwise take.
 ## Run it
 
 ```sql
-USE DATABASE LEAKGUARD; USE SCHEMA CORE; USE WAREHOUSE LEAKGUARD_WH;
-CALL SP_ACTION_DRAFTER('sql_baseline');
+CALL LEAKGUARD.CORE.SP_ACTION_DRAFTER('sql_baseline');
 ```
+
+Fully qualify — `USE DATABASE` from a previous tool call does not persist.
 
 Or the fuller, guard-railed version:
 

@@ -10,9 +10,12 @@ Compares what we invoiced against what the contract entitled us to invoice.
 ## Run it
 
 ```sql
-USE DATABASE LEAKGUARD; USE SCHEMA CORE; USE WAREHOUSE LEAKGUARD_WH;
-CALL SP_BILLING_RECONCILER();
+CALL LEAKGUARD.CORE.SP_BILLING_RECONCILER();
 ```
+
+Fully qualify — a `USE DATABASE` from a previous tool call does not persist, and
+`Unknown function SP_BILLING_RECONCILER` means an unqualified name, not a missing
+procedure.
 
 Deterministic — no inference, no cost, safe to call as often as you like. It
 rebuilds findings for every extraction arm from `V_CANDIDATE_LEAKS` and preserves

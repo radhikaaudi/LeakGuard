@@ -28,8 +28,21 @@ failure below has actually happened when an agent skipped this file:
   the *estimate*. See "Two numbers" below — getting this wrong misstates the
   headline figure by ~$22k.
 
-For "run the full leakguard audit", the answer is one call:
-`CALL SP_RUN_LEAKGUARD('sql_baseline');` — then report its summary line.
+For "run the full leakguard audit", the answer is one call — **fully qualified**:
+
+```sql
+CALL LEAKGUARD.CORE.SP_RUN_LEAKGUARD('sql_baseline');
+```
+
+Then report its summary line.
+
+**Always fully qualify.** A `USE DATABASE` issued in one tool call does not carry
+into the next, and the default connection has no current database — so a bare
+`CALL SP_RUN_LEAKGUARD(...)` fails with `Unknown function SP_RUN_LEAKGUARD`. That
+error means an unqualified name, **not** a missing procedure; do not go hunting
+through `SHOW PROCEDURES` for it. Same rule for `V_EVALUATION`,
+`LEAKAGE_FINDINGS`, and every other object: prefix `LEAKGUARD.CORE.` or issue the
+`USE` statements in the *same* statement batch as the query.
 
 ## The one architectural rule — do not break it
 
@@ -103,6 +116,21 @@ minimum-commitment amounts are exact.
 
 **Quote the confirmed figure as the headline, and say which one you are quoting.**
 Never present the estimate as the recoverable total.
+
+### The estimate also misranks customers — this matters more than the total
+
+The error is not evenly spread, so a per-customer ranking built on
+`estimated_recovery` puts the **wrong account first**:
+
+| Customer | Estimated | Confirmed |
+|---|---|---|
+| Vandelay Imports | $23,750.15 | **$66,707.97** ← actually largest |
+| Stark Manufacturing | $81,671.21 ← looks largest | $60,314.85 |
+
+Ranking on the estimate would send the recovery team to the wrong customer. Any
+"who are our worst accounts" answer must join `GROUND_TRUTH_LEAKS` for confirmed
+value, exactly as `05_evaluate.sql` section 6 does. Never rank on
+`SUM(estimated_recovery)`.
 
 ## Current state (verified 2026-07-30)
 

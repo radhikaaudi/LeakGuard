@@ -213,6 +213,18 @@ WHERE m.min_monthly_commit > 0                    -- 0 means "clause absent"
 --
 -- 'sql_baseline' is kept rather than renamed to 'sql_regex_baseline' because
 -- 05, 06 and the Streamlit app already reference it.
+-- MEMO PRESERVATION. Findings are derived data and get rebuilt here, but
+-- draft_memo is NOT derived: each one cost an inference call and may have been
+-- edited by a human. Without this stash/restore, running THIS SCRIPT silently
+-- destroys every memo, while running SP_BILLING_RECONCILER (which does preserve
+-- them) does not -- two paths, two behaviours, and the destructive one is the
+-- one a person is more likely to run by hand. That trap has already bitten once.
+CREATE OR REPLACE TEMPORARY TABLE _memo_stash AS
+SELECT detected_by, customer_id, month, product, leak_type, draft_memo
+FROM   LEAKAGE_FINDINGS
+WHERE  draft_memo IS NOT NULL
+  AND  detected_by IN ('sql_baseline', 'cortex');
+
 DELETE FROM LEAKAGE_FINDINGS WHERE detected_by IN ('sql_baseline', 'cortex');
 
 INSERT INTO LEAKAGE_FINDINGS
@@ -227,9 +239,24 @@ SELECT  customer_id, customer_name, month, product, leak_type,
         END
 FROM V_CANDIDATE_LEAKS;
 
+-- Re-attach memos on leak identity. A leak that no longer exists finds no row to
+-- attach to and its memo is correctly dropped.
+UPDATE LEAKAGE_FINDINGS f
+SET    draft_memo = s.draft_memo
+FROM   _memo_stash s
+WHERE  f.detected_by = s.detected_by
+  AND  f.customer_id = s.customer_id
+  AND  f.month       = s.month
+  AND  f.product     = s.product
+  AND  f.leak_type   = s.leak_type;
+
 -- ============================================================================
 -- VERIFICATION
 -- ============================================================================
+-- Memo survival. If findings > 0 but memos = 0 after a re-run that previously
+-- had memos, the stash above did not work -- do not just re-run 06 and move on.
+SELECT detected_by, COUNT(*) AS findings, COUNT(draft_memo) AS memos_preserved
+FROM LEAKAGE_FINDINGS WHERE detected_by IS NOT NULL GROUP BY detected_by;
 SELECT detected_by,
        leak_type,
        COUNT(*)                          AS found,
