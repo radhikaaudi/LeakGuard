@@ -1,11 +1,67 @@
-# Streamlit in Snowflake resolves packages from the Snowflake Anaconda channel.
-# Only declare what the app imports beyond the always-available streamlit and
-# snowflake-snowpark-python. Pinning is deliberately loose -- SiS curates the
-# channel, and an over-tight pin is the usual cause of a deploy that resolves
-# locally but not in Snowflake.
+# Package pins for Streamlit in Snowflake (warehouse runtime, python 3.11).
+#
+# SiS reads this file from the ROOT of the deployed version. snowflake.yml's
+# artifacts mapping flattens it there. Confirm it was actually read with
+#   DESCRIBE STREAMLIT LEAKGUARD.CORE.LEAKGUARD_CONSOLE;
+# -- user_packages must be populated, not empty.
+#
+# ---------------------------------------------------------------------------
+# THREE THINGS THAT ARE EASY TO GET WRONG HERE. All three were hit for real.
+# ---------------------------------------------------------------------------
+#
+# 1. SINGLE `=`, NOT `==`. This file is parsed as CONDA, not pip. The parser
+#    splits the package name at the FIRST `=`, so `pandas==2.2.3` yields a
+#    version of `=2.2.3` and the deploy dies with
+#      Anaconda dependency versions must be characters, numbers of one of
+#      [.+!] . =2.2.3 does not match this spec
+#    Pip-style `==` is correct in requirements.txt or a SQL `packages = (...)`
+#    clause. It is wrong in this file.
+#
+# 2. STREAMLIT MUST BE PINNED, AND PINNED HIGH. Left unpinned, SiS resolved
+#    streamlit 1.22.0 -- and 1.22.0 caps `altair <5`, which made altair 5.5.0
+#    unsatisfiable no matter what python version was chosen:
+#      package streamlit-1.22.0 requires altair <5,>=3.2.0, but none of the
+#      providers can be installed
+#    Downgrading altair to satisfy that cap is the WRONG fix: leakguard_app.py
+#    uses st.column_config.*, hide_index=, st.divider() and st.rerun(), which
+#    landed in streamlit 1.23-1.27. On 1.22.0 the packages would resolve and
+#    then the app would die on AttributeError instead. Pin streamlit forward.
+#
+# 3. INFORMATION_SCHEMA.PACKAGES IS NOT AUTHORITATIVE. It lists a row for
+#    altair 5.5.0 / runtime 3.11, but the conda solver refuses that combination
+#    -- the catalog row has no matching cp311 build behind it. The solver's
+#    error text is the source of truth; the view will happily show you a pin
+#    that cannot install. Verify by deploying, not by querying.
+#
+# 4. NO RANGE SPECIFIERS. `pandas>=2,<3` is rejected -- the same rule from (1)
+#    applies to the whole version string, which may contain only characters,
+#    numbers and [.+!]. `>`, `<` and `,` are none of those. A range does not
+#    fail the deploy loudly; DESCRIBE STREAMLIT just starts reporting
+#    "Error showing user packages" where it previously listed the packages.
+#    That string means the pins were REJECTED, not that DESCRIBE is being coy.
+#    The SQL `PACKAGES = (...)` clause does accept ranges -- this file does not.
+#
+# ---------------------------------------------------------------------------
+# These three exact versions are what the conda solver itself chose on runtime
+# 3.11, confirmed by creating a throwaway Python UDF with the same package set
+# and importing all three (see scratchpad/pkg_probe.sql). They are recorded
+# here as exact pins rather than left to float, so the resolution is
+# reproducible instead of drifting when the channel adds a build.
+#
+#   streamlit 1.52.2 -- newest in the channel; required for st.column_config.*,
+#     hide_index=, st.divider() and st.rerun(). Also lifts the altair<5 cap.
+#   pandas 2.3.3 -- must stay on 2.x. q()'s Decimal coercion in leakguard_app.py
+#     is written against pandas 2.x, where Snowflake NUMBER/DECIMAL arrives as
+#     decimal.Decimal in an object column. pandas 3.0 returns native
+#     float64/int64/str, the coercion becomes a no-op, and the app dies at
+#     import with `TypeError: bad argument type for built-in operation`.
+#   altair 5.5.0 -- the charts use the Altair 5 API (alt.X/alt.Y sort="-x",
+#     mark_bar(cornerRadiusEnd=)). The channel also offers 6.0.0, a breaking
+#     major; do not move to it without re-testing both charts.
 name: sf_env
 channels:
   - snowflake
 dependencies:
-  - pandas
-  - altair
+  - streamlit=1.52.2
+  - pandas=2.3.3
+  - altair=5.5.0

@@ -11,10 +11,60 @@ entities:
       name: LEAKGUARD_CONSOLE
       database: LEAKGUARD
       schema: CORE
-    stage: LEAKGUARD_STREAMLIT_STAGE
     query_warehouse: LEAKGUARD_WH
+
+    # main_file is resolved inside the DEPLOYED artifact tree, not in the repo.
+    # The artifacts mapping below flattens streamlit/ onto the version root, so
+    # the entrypoint lands as leakguard_app.py rather than
+    # streamlit/leakguard_app.py.
+    #
+    # That flattening is the point, and it is load-bearing: Streamlit in
+    # Snowflake reads environment.yml ONLY from the root of the version. While
+    # the artifacts were declared as bare paths, both files kept their
+    # streamlit/ prefix inside the version, environment.yml was never read, and
+    # the app ran with no declared pandas/altair -- inheriting whatever
+    # Streamlit pulled in transitively (pandas 3.0.x) and failing at import with
+    #   Python Interpreter Error: TypeError: bad argument type for built-in operation
+    #
+    # Confirm the layout took effect after `snow streamlit deploy`:
+    #   LIST 'snow://streamlit/LEAKGUARD.CORE.LEAKGUARD_CONSOLE/versions/live/';
+    #     -> /versions/live/leakguard_app.py  and  /versions/live/environment.yml
+    #        (NOT nested under /versions/live/streamlit/)
+    #   DESCRIBE STREAMLIT LEAKGUARD.CORE.LEAKGUARD_CONSOLE;
+    #     -> user_packages must list pandas and altair, not be empty
+    # Declared as the REPO path: the CLI validates main_file against the project
+    # directory before upload ("No match was found for the specified source in
+    # the project directory" if you name the post-flatten path here) and then
+    # resolves it through the artifacts mapping to leakguard_app.py in the version.
     main_file: streamlit/leakguard_app.py
-    title: "LeakGuard — Revenue Leakage Console"
     artifacts:
-      - streamlit/leakguard_app.py
-      - streamlit/environment.yml
+      - src: streamlit/leakguard_app.py
+        dest: ./
+      # environment.yml is deployed to BOTH the version root and next to the
+      # main file, from the one source file, because the two documented
+      # descriptions of where SiS looks for it disagree ("root of the version"
+      # vs "same directory as the main file") and DESCRIBE STREAMLIT's
+      # user_packages column is not trustworthy here -- it reports
+      # "Error showing user packages" rather than the resolved list. Two
+      # destinations, one source: no drift, and whichever rule SiS actually
+      # applies, it finds the pins.
+      - src: streamlit/environment.yml
+        dest: ./
+      - src: streamlit/environment.yml
+        dest: streamlit/
+
+    # ASCII hyphen, not an em dash. The CLI reads this file with the filesystem
+    # encoding, and on this machine the locale is cp1252 (`snow helpers
+    # detect-encoding` reports Locale: cp1252 against Filesystem: utf-8), which
+    # double-encoded the em dash and left the title showing in Snowsight as
+    # "LeakGuard â€” Revenue Leakage Console". Keeping the title ASCII makes the
+    # deploy independent of the machine's locale. The permanent fix for the
+    # warning itself is PYTHONUTF8=1 or [cli.encoding] in the CLI config.toml.
+    title: "LeakGuard - Revenue Leakage Console"
+
+    # NOTE: no `stage:` key. It previously read LEAKGUARD_STREAMLIT_STAGE, a
+    # stage that does not exist in this account (SHOW STAGES IN DATABASE
+    # LEAKGUARD lists only LEAKGUARD_STAGE). Deploys succeeded regardless
+    # because this is a versioned Streamlit -- the files live at
+    # snow://streamlit/.../versions/live/, not in a user stage -- so the key was
+    # dead config pointing at a non-existent object.
